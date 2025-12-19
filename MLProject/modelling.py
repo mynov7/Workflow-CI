@@ -1,45 +1,63 @@
 import pandas as pd
-import joblib
+import numpy as np
 import mlflow
 import mlflow.sklearn
+import os
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, classification_report
+from sklearn.metrics import accuracy_score, precision_score, confusion_matrix
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 def train_model():
-    df = pd.read_csv('loan_data_preprocessed.csv')
+    file_name = 'loan_data_preprocessed.csv'
+    if os.path.exists(file_name):
+        path = file_name
+    else:
+        path = os.path.join('MLProject', file_name)
     
-    print("Daftar kolom yang ditemukan:", df.columns.tolist())
-    
-    X = df.drop('loan_status', axis=1) 
+    try:
+        df = pd.read_csv(path)
+        print(f"Berhasil memuat data dari: {path}")
+    except Exception as e:
+        print(f"Gagal memuat data: {e}")
+        return
+
+    # 2. Persiapan Data
+    X = df.drop(columns=['loan_status'])
     y = df['loan_status']
-    
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    
-    # 3. Mulai Eksperimen dengan MLflow
-    mlflow.set_experiment("Loan_Experiment")
-    
-    with mlflow.start_run():
-        model = RandomForestClassifier(n_estimators=100, random_state=42)
+
+    # 3. Pengaturan MLflow
+    with mlflow.start_run(nested=True) as run:
+        # Model
+        model = RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42)
         model.fit(X_train, y_train)
         
-        # Prediksi dan Evaluasi
+        # Prediksi
         y_pred = model.predict(X_test)
         acc = accuracy_score(y_test, y_pred)
+        prec = precision_score(y_test, y_pred)
         
-        print(f"Model Accuracy: {acc:.2f}")
-        print(classification_report(y_test, y_pred))
-        
-        # Log parameter dan metrik ke MLflow Dashboard
-        mlflow.log_param("model_type", "RandomForest")
+        # Log Parameter dan Metrik
+        mlflow.log_param("n_estimators", 100)
+        mlflow.log_param("max_depth", 5)
         mlflow.log_metric("accuracy", acc)
+        mlflow.log_metric("precision", prec)
         
-        # 4. Simpan Model sebagai Artifak di MLflow
-        mlflow.sklearn.log_model(model, name="model_loan_artifact")
+        # Pembuatan Confusion Matrix (Artefak)
+        plt.figure(figsize=(8,6))
+        cm = confusion_matrix(y_test, y_pred)
+        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
+        plt.title('Confusion Matrix')
+        plt.savefig("confusion_matrix.png")
+        mlflow.log_artifact("confusion_matrix.png")
         
-        # 5. Simpan Model secara lokal untuk folder Membangun_model
-        joblib.dump(model, 'model_loan.pkl')
-        print("Model berhasil disimpan sebagai 'model_loan.pkl'")
+        # Simpan Model
+        mlflow.sklearn.log_model(model, "model")
+        
+        print(f"Run ID: {run.info.run_id}")
+        print(f"Model berhasil dilatih. Akurasi: {acc:.4f}")
 
 if __name__ == "__main__":
     train_model()
