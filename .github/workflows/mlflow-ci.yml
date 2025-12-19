@@ -1,0 +1,83 @@
+name: MLflow CI Training & Docker Push
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  train-and-dockerize:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python 3.12.7
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12.7"
+
+      - name: Install dependencies
+        run: |
+          pip install -r MLProject/conda.yaml || true
+          pip install mlflow==2.19.0 pandas scikit-learn numpy scipy pyarrow
+
+      - name: Run MLflow Project
+        run: |
+          mlflow run MLProject --env-manager=local
+
+      - name: Get latest MLflow run_id
+        id: get_run_id
+        run: |
+          RUN_ID=$(ls mlruns/0 | head -n 1)
+          echo "RUN_ID=$RUN_ID" >> $GITHUB_ENV
+          echo "Latest run_id: $RUN_ID"
+          
+      - name: Install python dependencies (post)
+        run: |
+          pip list
+
+      - name: Upload MLflow artifacts to GitHub
+        uses: actions/upload-artifact@v4
+        with:
+          name: mlflow-artifacts
+          path: mlruns
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Log in to Docker HUb
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          
+      - name: Build Docker model with MLflow
+        run: |
+          mlflow models build-docker \
+            --model-uri mlruns/0/${{ env.RUN_ID }}/artifacts/model_loan_ci \
+            --name ${{ secrets.DOCKER_USERNAME }}/loan-prediction-model
+
+      - name: Tag Docker image
+        run: |
+          docker tag \
+          ${{ secrets.DOCKER_USERNAME }}/loan-prediction-model:latest \
+          ${{ secrets.DOCKER_USERNAME }}/loan-prediction-model:v1
+
+      - name: Push Docker image
+        run: |  
+          docker push ${{ secrets.DOCKER_USERNAME }}/loan-prediction-model:latest
+          docker push ${{ secrets.DOCKER_USERNAME }}/loan-prediction-model:v1
+          
+      - name: Post log in to Docker Hub
+        run: docker logout
+
+      - name: Post set up Python
+        run: echo "Python setup completed"
+
+      - name: Post checkout cleanup
+        run: echo "Checkout completed"
+        
