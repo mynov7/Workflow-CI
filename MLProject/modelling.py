@@ -7,7 +7,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
 
 def train_model():
-    data_path = os.path.join(os.path.dirname(__file__), "data.csv")
+    data_path = os.path.join(os.path.dirname(__file__), "loan_data_preprocessed.csv")
 
     df = pd.read_csv(data_path)
     X = df.drop(columns=["target"])
