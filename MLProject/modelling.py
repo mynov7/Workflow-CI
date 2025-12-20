@@ -1,47 +1,44 @@
 import pandas as pd
-import joblib
 import mlflow
 import mlflow.sklearn
+
 from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, classification_report
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error, r2_score
 
-def train_model():
-    df = pd.read_csv("loan_data_preprocessed.csv")
+# Load dataset
+data = pd.read_csv("loan_data_preprocessed.csv")
 
-    print("Daftar kolom yang ditemukan:", df.columns.tolist())
+X = data.drop("loan_status", axis=1)
+y = data["loan_status"]
 
-    X = df.drop("loan_status", axis=1)
-    y = df["loan_status"]
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42
-    )
+# Start MLflow run
+with mlflow.start_run():
 
-    # SET experiment SAJA (boleh)
-    mlflow.set_experiment("Loan_Experiment")
-    
-    model = RandomForestClassifier(n_estimators=100, random_state=42)
+    model = LinearRegression()
     model.fit(X_train, y_train)
 
     y_pred = model.predict(X_test)
-    acc = accuracy_score(y_test, y_pred)
 
-    print(f"Model Accuracy: {acc:.2f}")
-    print(classification_report(y_test, y_pred))
+    mse = mean_squared_error(y_test, y_pred)
+    r2 = r2_score(y_test, y_pred)
 
-    mlflow.log_param("model_type", "RandomForest")
-    mlflow.log_metric("accuracy", acc)
+    # Log metrics
+    mlflow.log_metric("mse", mse)
+    mlflow.log_metric("r2", r2)
 
-    # Log model untuk CI + Docker
+    input_example = X_train.iloc[:5]
+
     mlflow.sklearn.log_model(
-        model,
+        sk_model=model,
         artifact_path="model",
-        registered_model_name="Loan_Experiment"
+        input_example=input_example,
+        registered_model_name="loan-model"
     )
 
-    joblib.dump(model, "model_loan.pkl")
-    print("Model berhasil disimpan")
-
-if __name__ == "__main__":
-    train_model()
+    print("MSE:", mse)
+    print("R2:", r2)
