@@ -16,8 +16,6 @@ def train_model():
     
     mlflow.autolog()
     
-    mlflow.set_experiment("Loan_Experiment")
-    
     with mlflow.start_run():
         # 3. Training Model
         model = RandomForestClassifier(n_estimators=100, random_state=42)
