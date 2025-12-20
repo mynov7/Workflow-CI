@@ -1,4 +1,3 @@
-import os
 import pandas as pd
 import joblib
 import mlflow
@@ -8,9 +7,8 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, classification_report
 
 def train_model():
-    os.makedirs("artifacts", exist_ok=True)
-
     df = pd.read_csv("loan_data_preprocessed.csv")
+
     print("Daftar kolom yang ditemukan:", df.columns.tolist())
 
     X = df.drop("loan_status", axis=1)
@@ -20,28 +18,30 @@ def train_model():
         X, y, test_size=0.2, random_state=42
     )
 
+    # SET experiment SAJA (boleh)
     mlflow.set_experiment("Loan_Experiment")
+    
+    model = RandomForestClassifier(n_estimators=100, random_state=42)
+    model.fit(X_train, y_train)
 
-    with mlflow.start_run():
-        model = RandomForestClassifier(n_estimators=100, random_state=42)
-        model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
+    acc = accuracy_score(y_test, y_pred)
 
-        y_pred = model.predict(X_test)
-        acc = accuracy_score(y_test, y_pred)
+    print(f"Model Accuracy: {acc:.2f}")
+    print(classification_report(y_test, y_pred))
 
-        print(f"Model Accuracy: {acc:.2f}")
-        print(classification_report(y_test, y_pred))
+    mlflow.log_param("model_type", "RandomForest")
+    mlflow.log_metric("accuracy", acc)
 
-        # Log ke MLflow
-        mlflow.log_param("model_type", "RandomForest")
-        mlflow.log_metric("accuracy", acc)
+    # Log model untuk CI + Docker
+    mlflow.sklearn.log_model(
+        model,
+        artifact_path="model",
+        registered_model_name="Loan_Experiment"
+    )
 
-        mlflow.sklearn.log_model(model, "model_loan_artifact")
-
-        # Simpan model
-        model_path = "artifacts/model_loan.pkl"
-        joblib.dump(model, model_path)
-        print(f"Model berhasil disimpan di {model_path}")
+    joblib.dump(model, "model_loan.pkl")
+    print("Model berhasil disimpan")
 
 if __name__ == "__main__":
     train_model()
