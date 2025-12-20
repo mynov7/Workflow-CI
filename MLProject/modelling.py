@@ -16,7 +16,6 @@ def train_model():
         X, y, test_size=0.2, random_state=42
     )
 
-    # ❗ JANGAN start_run di sini
     model = RandomForestClassifier(random_state=42)
     model.fit(X_train, y_train)
 
